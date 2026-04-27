@@ -1,0 +1,13 @@
+.vscode/**
+.vscode-test/**
+src/**
+.gitignore
+.yarnrc
+tsconfig.json
+**/*.map
+**/*.ts
+node_modules/**
+spec.md
+20260427_vscode_recently.md
+state.vscdb
+!media/**

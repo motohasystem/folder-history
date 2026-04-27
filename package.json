@@ -1,0 +1,100 @@
+{
+  "name": "folder-history",
+  "displayName": "Folder History",
+  "description": "VS Codeで開いたフォルダを日付付きで記録し、リスト表示する拡張機能",
+  "version": "0.2.0",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/motohasystem/folder-history.git"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "folderHistory",
+          "title": "Folder History",
+          "icon": "media/folder-history.svg"
+        }
+      ]
+    },
+    "views": {
+      "folderHistory": [
+        {
+          "type": "webview",
+          "id": "folderHistory.sidebar",
+          "name": "履歴",
+          "icon": "media/folder-history.svg",
+          "contextualTitle": "Folder History"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "folderHistory.show",
+        "title": "Folder History: Show",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "folderHistory.openLogFile",
+        "title": "Folder History: Open Log File",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "folderHistory.importFromRecent",
+        "title": "Folder History: Import from VS Code Recent List",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "folderHistory.refresh",
+        "title": "Folder History: Refresh",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "folderHistory.refresh",
+          "when": "view == folderHistory.sidebar",
+          "group": "navigation@1"
+        },
+        {
+          "command": "folderHistory.show",
+          "when": "view == folderHistory.sidebar",
+          "group": "navigation@2"
+        },
+        {
+          "command": "folderHistory.openLogFile",
+          "when": "view == folderHistory.sidebar",
+          "group": "overflow@1"
+        },
+        {
+          "command": "folderHistory.importFromRecent",
+          "when": "view == folderHistory.sidebar",
+          "group": "overflow@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules/
+out/
+*.vsix
+.vscode-test/
+
+# Local-only files (personal data / project notes)
+state.vscdb
+20260427_vscode_recently.md
