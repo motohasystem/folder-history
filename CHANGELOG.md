@@ -2,6 +2,18 @@
 
 本拡張機能の変更履歴です。フォーマットは [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に準拠し、[Semantic Versioning](https://semver.org/lang/ja/) を採用しています。
 
+## [0.3.0] - 2026-04-28
+
+### Added
+- 履歴行をクリックするとインラインメニューが開き、3つのアクションを選択可能に：
+  - **VS Code で開く**（`vscode.openFolder` で新しいウィンドウ）
+  - **エクスプローラで開く**（従来の `revealFileInOS`）
+  - **フルパスをコピー**（`vscode.env.clipboard.writeText`）
+- メニュー外クリック／Esc キーで閉じる挙動。
+
+### Changed
+- 行クリック直接で OS エクスプローラを起動していた挙動を、明示的なアクション選択方式に変更。
+
 ## [0.2.0] - 2026-04-28
 
 ### Added

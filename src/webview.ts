@@ -18,8 +18,14 @@ export class HistoryWebviewController {
         return;
       }
       switch (msg.type) {
-        case 'open':
+        case 'openInExplorer':
           await openInExplorer(String(msg.path));
+          break;
+        case 'openInVscode':
+          await openInVscode(String(msg.path));
+          break;
+        case 'copyPath':
+          await copyPath(String(msg.path));
           break;
         case 'refresh':
           this.refresh();
@@ -105,6 +111,37 @@ async function openInExplorer(folderPath: string): Promise<void> {
   }
 }
 
+async function openInVscode(folderPath: string): Promise<void> {
+  if (!folderPath) {
+    return;
+  }
+  try {
+    const uri = vscode.Uri.file(folderPath);
+    // forceNewWindow: 既存ウィンドウを置き換えず、新しいウィンドウで開く。
+    await vscode.commands.executeCommand('vscode.openFolder', uri, {
+      forceNewWindow: true,
+    });
+  } catch (err) {
+    vscode.window.showErrorMessage(
+      `VS Code でフォルダを開けませんでした: ${folderPath} (${(err as Error).message})`
+    );
+  }
+}
+
+async function copyPath(folderPath: string): Promise<void> {
+  if (!folderPath) {
+    return;
+  }
+  try {
+    await vscode.env.clipboard.writeText(folderPath);
+    vscode.window.setStatusBarMessage(`コピーしました: ${folderPath}`, 3000);
+  } catch (err) {
+    vscode.window.showErrorMessage(
+      `コピーに失敗しました: ${(err as Error).message}`
+    );
+  }
+}
+
 function renderHtml(entries: HistoryEntry[]): string {
   const groups = new Map<string, HistoryEntry[]>();
   const sorted = [...entries].sort((a, b) => {
@@ -136,10 +173,17 @@ function renderHtml(entries: HistoryEntry[]): string {
     const rows = list
       .map(
         e => `
-        <li class="row" data-path="${escapeAttr(e.path)}" data-name="${escapeAttr(e.name)}" title="${escapeAttr(e.path)}">
-          <div class="row-main">
-            <div class="name">${escapeHtml(e.name)}</div>
-            <div class="path">${escapeHtml(e.path)}</div>
+        <li class="item" data-path="${escapeAttr(e.path)}" data-name="${escapeAttr(e.name)}">
+          <div class="row" title="${escapeAttr(e.path)}">
+            <div class="row-main">
+              <div class="name">${escapeHtml(e.name)}</div>
+              <div class="path">${escapeHtml(e.path)}</div>
+            </div>
+          </div>
+          <div class="menu" role="menu">
+            <button data-action="openInVscode" role="menuitem"><span class="ico">&#x270E;</span>VS Code で開く</button>
+            <button data-action="openInExplorer" role="menuitem"><span class="ico">&#x1F4C1;</span>エクスプローラで開く</button>
+            <button data-action="copyPath" role="menuitem"><span class="ico">&#x29C9;</span>フルパスをコピー</button>
           </div>
         </li>`
       )
@@ -210,8 +254,13 @@ function renderHtml(entries: HistoryEntry[]): string {
     border-radius: 3px;
     display: flex;
     align-items: center;
+    position: relative;
   }
   .row:hover { background: var(--vscode-list-hoverBackground); }
+  .row.active {
+    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+  }
   .row-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
   .name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .path {
@@ -227,7 +276,46 @@ function renderHtml(entries: HistoryEntry[]): string {
     opacity: 0.6;
     font-size: 12px;
   }
-  .group.hidden, .row.hidden { display: none; }
+  .group.hidden, .item.hidden { display: none; }
+  .item { list-style: none; padding: 0; margin: 0; }
+
+  /* Inline action menu shown under the active row */
+  .menu {
+    display: none;
+    margin: 2px 6px 6px 6px;
+    background: var(--vscode-menu-background, var(--vscode-editorWidget-background));
+    color: var(--vscode-menu-foreground, var(--vscode-foreground));
+    border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border, var(--vscode-panel-border)));
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    padding: 4px;
+    z-index: 5;
+  }
+  .menu.show { display: block; }
+  .menu button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    color: inherit;
+    border: none;
+    padding: 6px 8px;
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .menu button:hover {
+    background: var(--vscode-menu-selectionBackground, var(--vscode-list-hoverBackground));
+    color: var(--vscode-menu-selectionForeground, inherit);
+  }
+  .menu button .ico {
+    flex: 0 0 14px;
+    opacity: 0.8;
+    text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -246,22 +334,60 @@ function renderHtml(entries: HistoryEntry[]): string {
   const vscode = acquireVsCodeApi();
   const filter = document.getElementById('filter');
 
-  document.querySelectorAll('.row').forEach(el => {
-    el.addEventListener('click', () => {
-      const p = el.getAttribute('data-path');
-      vscode.postMessage({ type: 'open', path: p });
+  let activeItem = null;
+
+  function closeMenu() {
+    if (activeItem) {
+      activeItem.querySelector('.menu')?.classList.remove('show');
+      activeItem.querySelector('.row')?.classList.remove('active');
+      activeItem = null;
+    }
+  }
+
+  function openMenu(item) {
+    closeMenu();
+    item.querySelector('.menu')?.classList.add('show');
+    item.querySelector('.row')?.classList.add('active');
+    activeItem = item;
+  }
+
+  document.querySelectorAll('.item').forEach(item => {
+    const row = item.querySelector('.row');
+    row.addEventListener('click', e => {
+      e.stopPropagation();
+      if (activeItem === item) {
+        closeMenu();
+      } else {
+        openMenu(item);
+      }
+    });
+    item.querySelectorAll('.menu button').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const action = btn.getAttribute('data-action');
+        const path = item.getAttribute('data-path');
+        vscode.postMessage({ type: action, path: path });
+        closeMenu();
+      });
     });
   });
 
+  // Click outside / Esc closes the menu.
+  document.addEventListener('click', () => closeMenu());
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeMenu();
+  });
+
   filter.addEventListener('input', () => {
+    closeMenu();
     const q = filter.value.toLowerCase().trim();
     document.querySelectorAll('.group').forEach(group => {
       let anyVisible = false;
-      group.querySelectorAll('.row').forEach(row => {
-        const name = (row.getAttribute('data-name') || '').toLowerCase();
-        const path = (row.getAttribute('data-path') || '').toLowerCase();
+      group.querySelectorAll('.item').forEach(item => {
+        const name = (item.getAttribute('data-name') || '').toLowerCase();
+        const path = (item.getAttribute('data-path') || '').toLowerCase();
         const match = !q || name.includes(q) || path.includes(q);
-        row.classList.toggle('hidden', !match);
+        item.classList.toggle('hidden', !match);
         if (match) anyVisible = true;
       });
       group.classList.toggle('hidden', !anyVisible);
