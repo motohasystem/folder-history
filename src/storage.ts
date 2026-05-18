@@ -10,9 +10,10 @@ export interface HistoryEntry {
 export interface HistoryFile {
   version: number;
   entries: HistoryEntry[];
+  stars: string[]; // folder paths
 }
 
-const EMPTY: HistoryFile = { version: 1, entries: [] };
+const EMPTY: HistoryFile = { version: 2, entries: [], stars: [] };
 
 export class HistoryStorage {
   constructor(private readonly filePath: string) {}
@@ -31,25 +32,35 @@ export class HistoryStorage {
   load(): HistoryFile {
     try {
       if (!fs.existsSync(this.filePath)) {
-        return { ...EMPTY };
+        return { ...EMPTY, stars: [] };
       }
       const raw = fs.readFileSync(this.filePath, 'utf8');
       if (!raw.trim()) {
-        return { ...EMPTY };
+        return { ...EMPTY, stars: [] };
       }
-      const parsed = JSON.parse(raw) as HistoryFile;
+      const parsed = JSON.parse(raw) as Partial<HistoryFile>;
       if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.entries)) {
-        return { ...EMPTY };
+        return { ...EMPTY, stars: [] };
       }
-      return { version: parsed.version ?? 1, entries: parsed.entries };
+      return {
+        version: parsed.version ?? 1,
+        entries: parsed.entries,
+        stars: Array.isArray(parsed.stars) ? parsed.stars : [],
+      };
     } catch {
-      return { ...EMPTY };
+      return { ...EMPTY, stars: [] };
     }
   }
 
   save(data: HistoryFile): void {
     this.ensureDir();
-    fs.writeFileSync(this.filePath, JSON.stringify(data, null, 2), 'utf8');
+    // Always serialize as v2.
+    const out: HistoryFile = {
+      version: 2,
+      entries: data.entries,
+      stars: data.stars,
+    };
+    fs.writeFileSync(this.filePath, JSON.stringify(out, null, 2), 'utf8');
   }
 
   /**
@@ -89,6 +100,28 @@ export class HistoryStorage {
       this.save(data);
     }
     return added;
+  }
+
+  isStarred(folderPath: string): boolean {
+    return this.load().stars.includes(folderPath);
+  }
+
+  /**
+   * Toggle star for a folder. Returns the new state (true = starred).
+   */
+  toggleStar(folderPath: string): boolean {
+    const data = this.load();
+    const idx = data.stars.indexOf(folderPath);
+    let nowStarred: boolean;
+    if (idx >= 0) {
+      data.stars.splice(idx, 1);
+      nowStarred = false;
+    } else {
+      data.stars.push(folderPath);
+      nowStarred = true;
+    }
+    this.save(data);
+    return nowStarred;
   }
 }
 
